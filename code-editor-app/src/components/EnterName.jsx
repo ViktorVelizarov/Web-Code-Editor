@@ -1,7 +1,7 @@
 import React, { useRef } from 'react'
 import { TextField, Button, Box, InputAdornment, Snackbar } from '@mui/material'
 import { useMutation } from 'react-query'
-import { useStore } from './store'
+import { useStore } from '../store'
 import axios from 'axios'
 
 const EnterName = () => {
@@ -59,38 +59,78 @@ const EnterName = () => {
 
   return (
     <Box>
-      <TextField
-        variant="outlined"
-        placeholder="Enter your name"
-        inputRef={inputRef}
-        InputProps={{
-          endAdornment: (
-            <InputAdornment position="end">
-              <Button variant="contained" onClick={createRoom}>
-                Go!
-              </Button>
-            </InputAdornment>
-          ),
-        }}
-        fullWidth
-        margin="normal"
-      />
-      <TextField
-        variant="outlined"
-        placeholder="Enter a room id"
-        inputRef={roomIdRef}
-        InputProps={{
-          endAdornment: (
-            <InputAdornment position="end">
-              <Button variant="contained" onClick={enterRoom}>
-                Join!
-              </Button>
-            </InputAdornment>
-          ),
-        }}
-        fullWidth
-        margin="normal"
-      />
+     <TextField
+  variant="outlined"
+  placeholder="Enter your name"
+  inputRef={inputRef}
+  InputProps={{
+    endAdornment: (
+      <InputAdornment position="end">
+        <Button variant="contained" onClick={createRoom}>
+          Go!
+        </Button>
+      </InputAdornment>
+    ),
+    sx: {
+      color: 'white', // Sets text color to white
+    },
+  }}
+  fullWidth
+  margin="normal"
+  sx={{
+    '& .MuiOutlinedInput-root': {
+      '& fieldset': {
+        borderColor: 'white', // Sets border color to white
+      },
+      '&:hover fieldset': {
+        borderColor: 'white', // Sets hover border color to white
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: 'white', // Sets focused border color to white
+      },
+    },
+    '& .MuiInputBase-input': {
+      color: 'white', // Sets input text color to white
+    },
+  }}
+/>
+
+<TextField
+  variant="outlined"
+  placeholder="Enter a room id"
+  inputRef={roomIdRef}
+  InputProps={{
+    endAdornment: (
+      <InputAdornment position="end">
+        <Button variant="contained" onClick={enterRoom}>
+          Join!
+        </Button>
+      </InputAdornment>
+    ),
+    sx: {
+      color: 'white',
+    },
+  }}
+  fullWidth
+  margin="normal"
+  sx={{
+    '& .MuiOutlinedInput-root': {
+      '& fieldset': {
+        borderColor: 'white',
+      },
+      '&:hover fieldset': {
+        borderColor: 'white',
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: 'white',
+      },
+    },
+    '& .MuiInputBase-input': {
+      color: 'white',
+    },
+  }}
+/>
+
       <Snackbar
         open={toast.open}
         autoHideDuration={6000}

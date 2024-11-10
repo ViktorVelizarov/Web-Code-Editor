@@ -1,7 +1,10 @@
 import { Box } from "@mui/material";
 import CodeEditor from "./components/CodeEditor";
+import EnterName from './components/EnterName'
+import { useStore } from './store'
 
 function App() {
+  const username = useStore(({ username }) => username)
   return (
     <Box
       sx={{
@@ -12,7 +15,7 @@ function App() {
         py: 8,
       }}
     >
-      <CodeEditor />
+      {username ? <CodeEditor /> : <EnterName />}
     </Box>
   );
 }
