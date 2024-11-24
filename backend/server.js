@@ -75,6 +75,20 @@ app.post('/create-room-with-user', async (req, res) => {
 
 io.on('connection', (socket) => {
   console.log(`New client connected: ${socket.id}`);
+
+  // Handle code changes
+  socket.on('CODE_CHANGED', async (code) => {
+    console.log("CODE_CHANGED event received from socket:", socket.id);
+    
+    const userSession = await UserRoom.findOne({ socketId: socket.id });
+    if (userSession) {
+      const { roomId } = userSession;
+      console.log(`Broadcasting code to room: ${roomId}`);
+      socket.to(roomId).emit('CODE_CHANGED', code);
+    } else {
+      console.log(`No room found for socket: ${socket.id}`);
+    }
+  });
   
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}`);
