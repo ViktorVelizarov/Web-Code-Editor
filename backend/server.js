@@ -1,5 +1,6 @@
 import express from 'express';
 import http from 'http';
+import { Server } from 'socket.io';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import pkg from 'body-parser';
@@ -10,6 +11,13 @@ const { blueBright, redBright } = chalk;
 
 const app = express();
 const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+      origin: "https://collaborativecodeeditor-440923.lm.r.appspot.com",
+      methods: ["GET", "POST"]
+    },
+    transports: ['websocket', 'polling']
+});
 
 // MongoDB connection
 mongoose.connect('mongodb+srv://viktorvelizarov1:RAJ96BJOusHZuAoM@cluster0.zr3t3.mongodb.net/', {
@@ -45,6 +53,14 @@ app.use(cors());
 
 app.get('/', (req, res) => {
   res.send({ msg: 'hello world' });
+});
+
+io.on('connection', (socket) => {
+  console.log(`New client connected: ${socket.id}`);
+  
+  socket.on('disconnect', () => {
+    console.log(`Socket disconnected: ${socket.id}`);
+  });
 });
 
 server.listen(8080, () => {
