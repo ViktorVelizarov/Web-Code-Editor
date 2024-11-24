@@ -3,6 +3,8 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import mongoose from 'mongoose';
+import { v4 as uuidv4 } from 'uuid';
+import moment from 'moment';
 import pkg from 'body-parser';
 const { json } = pkg;
 import chalk from 'chalk';
@@ -53,6 +55,22 @@ app.use(cors());
 
 app.get('/', (req, res) => {
   res.send({ msg: 'hello world' });
+});
+
+// Create a new room with a user
+app.post('/create-room-with-user', async (req, res) => {
+  const { username } = req.body;
+  const roomId = uuidv4();
+
+  const room = new Room({
+    roomId,
+    users: [username],
+    created: moment().toISOString(),
+    updated: moment().toISOString()
+  });
+
+  await room.save();
+  res.status(201).send({ roomId });
 });
 
 io.on('connection', (socket) => {
