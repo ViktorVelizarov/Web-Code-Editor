@@ -1,11 +1,44 @@
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import pkg from 'body-parser';
 const { json } = pkg;
+import chalk from 'chalk';
+
+const { blueBright, redBright } = chalk;
 
 const app = express();
 const server = http.createServer(app);
+
+// MongoDB connection
+mongoose.connect('mongodb+srv://viktorvelizarov1:RAJ96BJOusHZuAoM@cluster0.zr3t3.mongodb.net/', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => {
+  console.log(blueBright.bold('Connected to MongoDB!'));
+}).catch((err) => {
+  console.error(redBright.bold('Error connecting to MongoDB'), err);
+});
+
+// Room schema
+const roomSchema = new mongoose.Schema({
+  roomId: String,
+  users: [String],
+  created: { type: Date, default: Date.now },
+  updated: { type: Date, default: Date.now }
+});
+
+const Room = mongoose.model('Room', roomSchema);
+
+// UserRoom schema
+const userRoomSchema = new mongoose.Schema({
+  socketId: String,
+  roomId: String,
+  username: String
+});
+
+const UserRoom = mongoose.model('UserRoom', userRoomSchema);
 
 app.use(json());
 app.use(cors());
