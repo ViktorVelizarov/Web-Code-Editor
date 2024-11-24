@@ -89,6 +89,19 @@ io.on('connection', (socket) => {
       console.log(`No room found for socket: ${socket.id}`);
     }
   });
+
+  // Handle connection to room
+  socket.on('CONNECTED_TO_ROOM', async ({ roomId, username }) => {
+    await UserRoom.create({ socketId: socket.id, roomId, username });
+
+    const usersInRoom = await UserRoom.find({ roomId }).select('username -_id');
+    const userList = usersInRoom.map(user => user.username);
+    
+    socket.join(roomId);
+    
+    console.log(`User ${username} connected to room: ${roomId}`);
+    io.in(roomId).emit('ROOM:CONNECTION', userList);
+  });
   
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}`);
