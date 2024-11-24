@@ -1,28 +1,65 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Box, Stack, Typography } from '@mui/material';
+import CodeMirror from 'codemirror';
 import 'codemirror/lib/codemirror.css';
 import 'codemirror/theme/material-ocean.css';
-import 'codemirror/mode/javascript/javascript';
-import 'codemirror/keymap/sublime';
-import CodeMirror from 'codemirror';
-import io from 'socket.io-client';
-import { Typography } from '@mui/material'; // Material UI Typography
-import { useStore } from '../store';
 
-const RealTimeEditor = () => {
+// Dynamically import modes
+import 'codemirror/mode/javascript/javascript';
+import 'codemirror/mode/python/python';
+import 'codemirror/mode/clike/clike'; // This supports C, C++, Java
+
+import 'codemirror/keymap/sublime';
+import io from 'socket.io-client';
+import { useStore } from '../store';
+import LanguageSelector from './LanguageSelector';
+import Output from './Output';
+import { CODE_SNIPPETS } from '../constants';
+
+const CodeEditor = () => {
   const [users, setUsers] = useState([]);
+  const [language, setLanguage] = useState("javascript");
   const { username, roomId } = useStore(({ username, roomId }) => ({
     username,
     roomId,
   }));
 
+  const editorRef = useRef(null);
+
+  // Map languages to CodeMirror modes
+  const getCodeMirrorMode = (language) => {
+    switch(language) {
+      case 'javascript':
+        return 'javascript';
+      case 'python':
+        return 'python';
+      case 'cpp':
+        return 'text/x-c++src';
+      case 'java':
+        return 'text/x-java';
+      case 'c':
+        return 'text/x-csrc';
+      default:
+        return 'javascript';
+    }
+  };
+
   useEffect(() => {
     // Initialize CodeMirror
-    const editor = CodeMirror.fromTextArea(document.getElementById('ds'), {
+    const textArea = document.getElementById('code-editor');
+    const editor = CodeMirror.fromTextArea(textArea, {
       lineNumbers: true,
       keyMap: 'sublime',
       theme: 'material-ocean',
-      mode: 'javascript',
+      mode: getCodeMirrorMode(language),
+      lineWrapping: true,
     });
+
+    // Store reference to editor
+    editorRef.current = editor;
+
+    // Set initial value
+    editor.doc.setValue(CODE_SNIPPETS[language] || '');
 
     // Initialize socket connection
     const socket = io('https://collaborativecodeeditor-440923.lm.r.appspot.com/', {
@@ -41,10 +78,12 @@ const RealTimeEditor = () => {
     });
 
     // Listen for code changes from the server
-    socket.on('CODE_CHANGED', (code) => {
-      console.log('CODE_CHANGED event received with code:', code);
-      if (code !== editor.getValue()) {
-        editor.setValue(code); // Update only if different to avoid loop
+    socket.on('CODE_CHANGED', (newCode) => {
+      const currentCode = editor.getValue();
+      if (newCode !== currentCode) {
+        const cursorPosition = editor.getCursor(); // Save cursor position
+        editor.doc.setValue(newCode); // Update the editor content
+        editor.setCursor(cursorPosition); // Restore cursor position
       }
     });
 
@@ -70,18 +109,47 @@ const RealTimeEditor = () => {
       socket.disconnect();
       editor.toTextArea(); // Cleanup CodeMirror instance
     };
-  }, [roomId, username]);
+  }, [roomId, username, language]);
+
+  const onSelect = (selectedLanguage) => {
+    setLanguage(selectedLanguage);
+    if (editorRef.current) {
+      // Update mode
+      editorRef.current.setOption('mode', getCodeMirrorMode(selectedLanguage));
+      
+      // Set value from code snippets
+      editorRef.current.doc.setValue(CODE_SNIPPETS[selectedLanguage] || '');
+    }
+  };
 
   return (
-    <>
-      <Typography variant="h5">Your username is: {username}</Typography>
-      <Typography variant="h5">The room ID is: {roomId}</Typography>
-      <Typography variant="h5">
-        How many people are connected: <b>{users.length}</b>
-      </Typography>
-      <textarea id="ds" />
-    </>
+    <Box>
+      <Stack direction="row" spacing={4}>
+        <Box sx={{ width: "50%" }}>
+          <Typography variant="h5" gutterBottom>
+            Username: {username}
+          </Typography>
+          <Typography variant="h5" gutterBottom>
+            Room ID: {roomId}
+          </Typography>
+          <Typography variant="h5" gutterBottom>
+            Connected Users: <b>{users.length}</b>
+          </Typography>
+          
+          <LanguageSelector 
+            language={language} 
+            onSelect={onSelect} 
+          />
+          
+          <textarea id="code-editor" />
+        </Box>
+        <Output 
+          editorRef={editorRef} 
+          language={language} 
+        />
+      </Stack>
+    </Box>
   );
 };
 
-export default RealTimeEditor;
+export default CodeEditor;
