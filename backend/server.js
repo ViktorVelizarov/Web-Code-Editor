@@ -15,7 +15,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-      origin: "https://collaborativecodeeditor-440923.lm.r.appspot.com",
+      origin: "http://localhost:8080",
       methods: ["GET", "POST"]
     },
     transports: ['websocket', 'polling'] // WebSocket as primary, fallback to polling
@@ -86,60 +86,69 @@ app.post('/create-room-with-user', async (req, res) => {
 
 io.on('connection', (socket) => {
   console.log(`New client connected: ${socket.id}`);
-  // Handle code changes
-  socket.on('CODE_CHANGED', async (code) => {
-    console.log("CODE_CHANGED event received from socket:", socket.id);
-    
-    // Retrieve roomId from the UserRoom collection using socket.id
-    const userSession = await UserRoom.findOne({ socketId: socket.id });
-    if (userSession) {
-      const { roomId } = userSession;
-      console.log(`Broadcasting code to room: ${roomId}`);
-      socket.to(roomId).emit('CODE_CHANGED', code);
-    } else {
-      console.log(`No room found for socket: ${socket.id}`);
-    }
-  });
 
   // Handle connection to room
   socket.on('CONNECTED_TO_ROOM', async ({ roomId, username }) => {
-    // Store socketId, roomId, and username in the UserRoom collection
-    await UserRoom.create({ socketId: socket.id, roomId, username });
+    try {
+      // Store socketId, roomId, and username in the UserRoom collection
+      await UserRoom.create({ socketId: socket.id, roomId, username });
+    
+      // Update the Room document to add the user to the users array
+      await Room.findOneAndUpdate(
+        { roomId: roomId },
+        { 
+          $addToSet: { users: username },  // $addToSet prevents duplicate usernames
+          updated: moment().toISOString() 
+        }
+      );
+    
+      // Find users in the same room
+      const usersInRoom = await UserRoom.find({ roomId }).select('username -_id');
+      const userList = [...new Set(usersInRoom.map(user => user.username))]; // Ensure unique usernames
+      
+      // Join the socket to the room
+      socket.join(roomId);
+      
+      console.log(`User ${username} connected to room: ${roomId}`);
+      console.log('Users in room:', userList);
 
-    // Find users in the same room
-    const usersInRoom = await UserRoom.find({ roomId }).select('username -_id');
-    const userList = usersInRoom.map(user => user.username);
-    
-    // Join the socket to the room
-    socket.join(roomId);
-    
-    console.log(`User ${username} connected to room: ${roomId}`);
-    io.in(roomId).emit('ROOM:CONNECTION', userList);
+      // Broadcast to ALL clients in the room, including the sender
+      io.in(roomId).emit('ROOM:CONNECTION', userList);
+    } catch (error) {
+      console.error('Error in CONNECTED_TO_ROOM:', error);
+    }
   });
 
-  // Handle socket disconnection
+  // Modify disconnect handler to be more robust
   socket.on('disconnect', async () => {
     console.log(`Socket disconnected: ${socket.id}`);
 
-    // Find and remove the user from the UserRoom collection
-    const userSession = await UserRoom.findOneAndDelete({ socketId: socket.id });
-    if (userSession) {
-      const { roomId, username } = userSession;
-      
-      // Find remaining users in the room
-      const remainingUsers = await UserRoom.find({ roomId }).select('username -_id');
-      const userList = remainingUsers.map(user => user.username);
+    try {
+      // Find and remove the user from the UserRoom collection
+      const userSession = await UserRoom.findOneAndDelete({ socketId: socket.id });
+      if (userSession) {
+        const { roomId, username } = userSession;
+        
+        // Find remaining users in the room
+        const remainingUsers = await UserRoom.find({ roomId }).select('username -_id');
+        const userList = [...new Set(remainingUsers.map(user => user.username))];
 
-      if (userList.length === 0) {
-        // Optionally delete the room if no users are left
-        await Room.deleteOne({ roomId });
-        console.log(`Room ${roomId} deleted as no users are left`);
+        if (userList.length === 0) {
+          // Optionally delete the room if no users are left
+          await Room.deleteOne({ roomId });
+          console.log(`Room ${roomId} deleted as no users are left`);
+        } else {
+          console.log(`User ${username} disconnected from room: ${roomId}`);
+          console.log('Remaining users:', userList);
+          
+          // Broadcast updated user list to all remaining clients in the room
+          io.in(roomId).emit('ROOM:CONNECTION', userList);
+        }
       } else {
-        console.log(`User ${username} disconnected from room: ${roomId}`);
-        io.in(roomId).emit('ROOM:CONNECTION', userList);
+        console.log(`No session found for socket: ${socket.id}`);
       }
-    } else {
-      console.log(`No session found for socket: ${socket.id}`);
+    } catch (error) {
+      console.error('Error in disconnect handler:', error);
     }
   });
 });

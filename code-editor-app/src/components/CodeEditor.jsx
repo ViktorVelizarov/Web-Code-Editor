@@ -62,7 +62,7 @@ const CodeEditor = () => {
     editor.doc.setValue(CODE_SNIPPETS[language] || '');
 
     // Initialize socket connection
-    const socket = io('https://collaborativecodeeditor-440923.lm.r.appspot.com/', {
+    const socket = io('http://localhost:8080', {
       transports: ['websocket'],
     });
 
