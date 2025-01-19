@@ -146,27 +146,50 @@ const CodeEditor = () => {
           </Typography>
           
           <Box sx={{ mt: 3, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>Connected Users:</Typography>
-            <div className="space-y-2">
-              {users.map((user) => (
-                <div
-                  key={user}
-                  className="flex items-center justify-between p-2 bg-gray-100 rounded"
-                >
-                  <span className="text-gray-900">{user}</span>
-                  {isOwner && user !== username && (
-                    <button
-                      onClick={() => handleRemoveUser(user)}
-                      className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
-                      aria-label={`Remove ${user}`}
-                    >
-                      <UserX className="w-5 h-5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </Box>
+  <Typography variant="h6" gutterBottom>
+    Connected Users:
+  </Typography>
+  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+    {users.map((user) => (
+      <Box
+        key={user}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px',  // Fixed padding
+          height: '22px',  // Fixed height
+          bgcolor: 'grey.100',
+          borderRadius: 1
+        }}
+      >
+        <Typography sx={{ color: 'text.primary' }}>
+          {user}
+        </Typography>
+        {isOwner && user !== username && (
+          <IconButton
+            onClick={() => handleRemoveUser(user)}
+            sx={{
+              color: 'error.main',
+              padding: '4px',
+              minWidth: '28px',
+              minHeight: '28px',
+              height: '28px',
+              width: '28px',
+              '&:hover': {
+                bgcolor: 'error.light',
+                opacity: 0.9
+              }
+            }}
+            aria-label={`Remove ${user}`}
+          >
+            <UserX size={18} />
+          </IconButton>
+        )}
+      </Box>
+    ))}
+  </Box>
+</Box>
           
           <LanguageSelector 
             language={language} 
