@@ -14,7 +14,7 @@ const EnterName = () => {
   }))
 
   const { mutateAsync } = useMutation(({ username, roomId, uri }) => {
-    return axios.post(`https://collaborativecodeeditor-440923.lm.r.appspot.com/${uri}`, {
+    return axios.post(`http://localhost:8080/${uri}`, {
       username,
       roomId,
     })

@@ -41,6 +41,7 @@
       const room = new Room({
         roomId,
         users: [username],
+        owner: username,
         created: moment().toISOString(),
         updated: moment().toISOString()
       });
@@ -63,7 +64,7 @@
       transports: ['websocket', 'polling']
     });
 
-    // Your existing Socket.IO logic here
+    // Socket.IO logic here
     io.on('connection', (socket) => {
       console.log(`New client connected: ${socket.id}`);
     
@@ -88,14 +89,16 @@
           // Store socketId, roomId, and username in the UserRoom collection
           await UserRoom.create({ socketId: socket.id, roomId, username });
         
-          // Update the Room document to add the user to the users array
-          await Room.findOneAndUpdate(
-            { roomId: roomId },
-            { 
-              $addToSet: { users: username },  // $addToSet prevents duplicate usernames
-              updated: moment().toISOString() 
-            }
-          );
+           // Update or create the Room document
+        const room = await Room.findOneAndUpdate(
+          { roomId: roomId },
+          { 
+            $addToSet: { users: username },
+            $setOnInsert: { owner: username }, // Set owner only if document is being created
+            updated: moment().toISOString() 
+          },
+          { upsert: true, new: true }
+        );
         
           // Find users in the same room
           const usersInRoom = await UserRoom.find({ roomId }).select('username -_id');
@@ -107,12 +110,56 @@
           console.log(`User ${username} connected to room: ${roomId}`);
           console.log('Users in room:', userList);
     
-          // Broadcast to ALL clients in the room, including the sender
-          io.in(roomId).emit('ROOM:CONNECTION', userList);
+           // Send both users list and owner information
+        io.in(roomId).emit('ROOM:CONNECTION', { 
+          users: userList,
+          owner: room.owner
+        });
         } catch (error) {
           console.error('Error in CONNECTED_TO_ROOM:', error);
         }
       });
+
+       // Handle user removal
+    socket.on('REMOVE_USER', async ({ roomId, username }) => {
+      try {
+        // Verify that the requesting socket is the room owner
+        const room = await Room.findOne({ roomId });
+        const requester = await UserRoom.findOne({ socketId: socket.id });
+        
+        if (room && requester && room.owner === requester.username) {
+          // Find the socket ID of the user to remove
+          const userToRemove = await UserRoom.findOne({ roomId, username });
+          
+          if (userToRemove) {
+            // Remove user from both collections
+            await UserRoom.deleteOne({ roomId, username });
+            await Room.updateOne(
+              { roomId },
+              { 
+                $pull: { users: username },
+                updated: moment().toISOString()
+              }
+            );
+
+            // Notify the removed user
+            io.to(userToRemove.socketId).emit('ROOM:REMOVED');
+            
+            // Update the room's user list
+            const remainingUsers = await UserRoom.find({ roomId }).select('username -_id');
+            const userList = [...new Set(remainingUsers.map(user => user.username))];
+            
+            // Broadcast updated user list
+            io.in(roomId).emit('ROOM:CONNECTION', {
+              users: userList,
+              owner: room.owner
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error in REMOVE_USER:', error);
+      }
+    });
     
       // Modify disconnect handler to be more robust
       socket.on('disconnect', async () => {
@@ -137,7 +184,10 @@
               console.log('Remaining users:', userList);
               
               // Broadcast updated user list to all remaining clients in the room
-              io.in(roomId).emit('ROOM:CONNECTION', userList);
+              io.in(roomId).emit('ROOM:CONNECTION', {
+                users: userList,
+                owner: Room.owner
+              });
             }
           } else {
             console.log(`No session found for socket: ${socket.id}`);

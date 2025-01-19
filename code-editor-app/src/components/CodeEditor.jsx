@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Box, Stack, Typography } from '@mui/material';
+import { Box, Stack, Typography, List, ListItem, ListItemText, IconButton } from '@mui/material';
+import { UserX } from 'lucide-react';
 import CodeMirror from 'codemirror';
 import 'codemirror/lib/codemirror.css';
 import 'codemirror/theme/material-ocean.css';
@@ -18,6 +19,7 @@ import { CODE_SNIPPETS } from '../constants';
 
 const CodeEditor = () => {
   const [users, setUsers] = useState([]);
+  const [isOwner, setIsOwner] = useState(false);
   const [language, setLanguage] = useState("javascript");
   const { username, roomId } = useStore(({ username, roomId }) => ({
     username,
@@ -25,6 +27,7 @@ const CodeEditor = () => {
   }));
 
   const editorRef = useRef(null);
+  const socketRef = useRef(null);
 
   // Map languages to CodeMirror modes
   const getCodeMirrorMode = (language) => {
@@ -55,18 +58,15 @@ const CodeEditor = () => {
       lineWrapping: true,
     });
 
-    // Store reference to editor
     editorRef.current = editor;
-
-    // Set initial value
-    editor.doc.setValue(CODE_SNIPPETS[language] || '');
+    editor.doc.setValue(CODE_SNIPPETS[language] || '');  
 
     // Initialize socket connection
     const socket = io('http://localhost:8080', {
       transports: ['websocket'],
     });
+    socketRef.current = socket;
 
-    // Handle socket connection events
     socket.on('connect', () => {
       console.log('Connected to server');
       socket.emit('CONNECTED_TO_ROOM', { roomId, username });
@@ -81,35 +81,47 @@ const CodeEditor = () => {
     socket.on('CODE_CHANGED', (newCode) => {
       const currentCode = editor.getValue();
       if (newCode !== currentCode) {
-        const cursorPosition = editor.getCursor(); // Save cursor position
-        editor.doc.setValue(newCode); // Update the editor content
-        editor.setCursor(cursorPosition); // Restore cursor position
+        const cursorPosition = editor.getCursor();
+        editor.doc.setValue(newCode);
+        editor.setCursor(cursorPosition);
       }
     });
 
-    // Listen for updated user list
-    socket.on('ROOM:CONNECTION', (users) => {
+    // Listen for updated user list and owner status
+    socket.on('ROOM:CONNECTION', ({ users, owner }) => {
       console.log('Updated users in room:', users);
       setUsers(users);
+      setIsOwner(owner === username);
     });
 
-    // Listen for changes in the CodeMirror editor and emit them
+    // Listen for being removed from the room
+    socket.on('ROOM:REMOVED', () => {
+      alert('You have been removed from the room by the owner');
+      // Redirect to home or room selection page
+      window.location.href = '/';
+    });
+
     editor.on('change', (instance, changes) => {
       const { origin } = changes;
-      if (origin !== 'setValue') { // Prevent emit on setValue to avoid loops
+      if (origin !== 'setValue') {
         console.log('Emitting CODE_CHANGED event with code:', instance.getValue());
         socket.emit('CODE_CHANGED', instance.getValue());
       }
     });
 
-    // Cleanup on unmount
     return () => {
       console.log('Cleaning up socket connection');
       socket.emit('DISCONNECT_FROM_ROOM', { roomId, username });
       socket.disconnect();
-      editor.toTextArea(); // Cleanup CodeMirror instance
+      editor.toTextArea();
     };
   }, [roomId, username, language]);
+
+  const handleRemoveUser = (userToRemove) => {
+    if (isOwner && socketRef.current) {
+      socketRef.current.emit('REMOVE_USER', { roomId, username: userToRemove });
+    }
+  };
 
   const onSelect = (selectedLanguage) => {
     setLanguage(selectedLanguage);
@@ -127,14 +139,34 @@ const CodeEditor = () => {
       <Stack direction="row" spacing={4}>
         <Box sx={{ width: "50%" }}>
           <Typography variant="h5" gutterBottom>
-            Username: {username}
+            Username: {username} {isOwner && "(Room Owner)"}
           </Typography>
           <Typography variant="h5" gutterBottom>
             Room ID: {roomId}
           </Typography>
-          <Typography variant="h5" gutterBottom>
-            Connected Users: <b>{users.length}</b>
-          </Typography>
+          
+          <Box sx={{ mt: 3, mb: 3 }}>
+            <Typography variant="h6" gutterBottom>Connected Users:</Typography>
+            <div className="space-y-2">
+              {users.map((user) => (
+                <div
+                  key={user}
+                  className="flex items-center justify-between p-2 bg-gray-100 rounded"
+                >
+                  <span className="text-gray-900">{user}</span>
+                  {isOwner && user !== username && (
+                    <button
+                      onClick={() => handleRemoveUser(user)}
+                      className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
+                      aria-label={`Remove ${user}`}
+                    >
+                      <UserX className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Box>
           
           <LanguageSelector 
             language={language} 
